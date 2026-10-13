@@ -50,8 +50,8 @@ export const CameraPanel: React.FC<CameraPanelProps> = ({
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { ideal: 1920, max: 3840 },
+          height: { ideal: 1080, max: 2160 },
           facingMode: 'user',
         },
         audio: false, // strictly no audio recorded or transmitted
@@ -119,19 +119,19 @@ export const CameraPanel: React.FC<CameraPanelProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl relative">
+    <div className="flex flex-col h-full min-h-0 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl relative">
       {/* Panel Top Header */}
-      <div className="flex items-center justify-between px-5 py-3.5 bg-slate-900/90 border-b border-slate-800 backdrop-blur z-20">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between px-4 py-2.5 bg-slate-900/90 border-b border-slate-800 backdrop-blur z-20 shrink-0">
+        <div className="flex items-center gap-2.5">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-            <h2 className="text-sm font-semibold tracking-wide text-slate-200 uppercase font-display">
-              Cermin Panggung & Kamera Siswa
+            <h2 className="text-xs sm:text-sm font-semibold tracking-wide text-slate-200 uppercase font-display">
+              Cermin Kamera Siswa
             </h2>
           </div>
-          <span className="text-slate-600">|</span>
-          <span className="text-xs text-slate-400 font-mono">
-            {isCameraActive ? 'LIVE VIEW (1280x720)' : 'KAMERA NONAKTIF'}
+          <span className="text-slate-600 hidden sm:inline">|</span>
+          <span className="text-[11px] text-slate-400 font-mono hidden sm:inline">
+            {isCameraActive ? 'LIVE 4K' : 'NONAKTIF'}
           </span>
         </div>
 
@@ -191,7 +191,7 @@ export const CameraPanel: React.FC<CameraPanelProps> = ({
       </div>
 
       {/* Video Viewport Stage */}
-      <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden">
+      <div className="relative flex-1 min-h-0 bg-black flex items-center justify-center overflow-hidden">
         {/* Real Live Video */}
         <video
           ref={videoRef}

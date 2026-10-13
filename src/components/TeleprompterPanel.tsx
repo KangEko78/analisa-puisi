@@ -194,16 +194,16 @@ export const TeleprompterPanel: React.FC<TeleprompterPanelProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl relative">
+    <div className="flex flex-col h-full min-h-0 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl relative">
       {/* Top Header & Teleprompter Controls Bar */}
-      <div className="px-5 py-3.5 bg-slate-900/95 border-b border-slate-800 backdrop-blur z-20 flex flex-wrap items-center justify-between gap-3">
+      <div className="px-4 py-2.5 bg-slate-900/95 border-b border-slate-800 backdrop-blur z-20 shrink-0 flex flex-wrap items-center justify-between gap-2">
         {/* Left: Poem Metadata */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
           <div>
-            <h2 className="text-sm font-bold text-white tracking-wide uppercase font-display flex items-center gap-2">
+            <h2 className="text-xs sm:text-sm font-bold text-white tracking-wide uppercase font-display flex items-center gap-2">
               <span>{poem.title}</span>
-              <span className="text-xs font-normal text-amber-400/90 font-serif italic">
+              <span className="text-xs font-normal text-amber-400/90 font-serif italic hidden sm:inline">
                 karya {poem.poet} {poem.year ? `(${poem.year})` : ''}
               </span>
             </h2>
@@ -324,10 +324,10 @@ export const TeleprompterPanel: React.FC<TeleprompterPanelProps> = ({
       </div>
 
       {/* Progress Bar Header Strip */}
-      <div className="w-full bg-slate-950/80 border-b border-slate-800 px-5 py-2 flex items-center justify-between text-xs font-mono text-slate-400 z-10">
-        <div className="flex items-center gap-3">
-          <span>KEMAJUAN BACA:</span>
-          <div className="w-36 h-2 bg-slate-800 rounded-full overflow-hidden">
+      <div className="w-full bg-slate-950/80 border-b border-slate-800 px-4 py-1.5 flex items-center justify-between text-xs font-mono text-slate-400 z-10 shrink-0">
+        <div className="flex items-center gap-2.5">
+          <span className="text-[11px]">KEMAJUAN:</span>
+          <div className="w-28 sm:w-36 h-2 bg-slate-800 rounded-full overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-amber-500 to-amber-300 transition-all duration-200"
               style={{ width: `${progressPercent}%` }}
@@ -335,7 +335,7 @@ export const TeleprompterPanel: React.FC<TeleprompterPanelProps> = ({
           </div>
           <span className="text-amber-400 font-bold">{progressPercent}%</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 hidden sm:flex">
           <span className="text-slate-500">Petunjuk IFP:</span>
           <span className="text-slate-300">Sentuh baris mana saja untuk melompat</span>
         </div>
@@ -343,18 +343,18 @@ export const TeleprompterPanel: React.FC<TeleprompterPanelProps> = ({
 
       {/* Notation Legend Drawer (Collapsible) */}
       {showLegend && (
-        <div className="bg-slate-950/90 border-b border-slate-800 px-5 py-3 z-10 text-xs text-slate-300 transition-all">
+        <div className="bg-slate-950/90 border-b border-slate-800 px-4 py-2.5 z-10 text-xs text-slate-300 transition-all shrink-0">
           <div className="flex items-center gap-2 font-semibold text-amber-300 mb-2 font-display">
             <Info className="w-4 h-4" />
             <span>Panduan Tanda Pembacaan Puisi Kurikulum Bahasa Indonesia SMP</span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[11px] leading-relaxed">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-[11px] leading-relaxed">
             <div className="flex items-start gap-2 p-2 bg-slate-900 rounded-lg border border-sky-900/50">
               <span className="px-1.5 py-0.5 bg-sky-950 text-sky-300 border border-sky-600/40 font-mono font-bold rounded">
                 /
               </span>
               <div>
-                <strong className="text-sky-300">Jeda Pendek:</strong> Berhenti sejenak (± 0.5 detik). Pemenggalan frasa agar makna kata tidak rancu.
+                <strong className="text-sky-300">Jeda Pendek:</strong> Berhenti sejenak (± 0.5 detik). Pemenggalan frasa.
               </div>
             </div>
             <div className="flex items-start gap-2 p-2 bg-slate-900 rounded-lg border border-amber-900/50">
@@ -362,7 +362,7 @@ export const TeleprompterPanel: React.FC<TeleprompterPanelProps> = ({
                 //
               </span>
               <div>
-                <strong className="text-amber-300">Jeda Sedang:</strong> Berhenti (± 1 detik). Pergantian anak kalimat, koma, atau penegasan frasa.
+                <strong className="text-amber-300">Jeda Sedang:</strong> Berhenti (± 1 detik). Pergantian kalimat/koma.
               </div>
             </div>
             <div className="flex items-start gap-2 p-2 bg-slate-900 rounded-lg border border-rose-900/50">
@@ -370,7 +370,7 @@ export const TeleprompterPanel: React.FC<TeleprompterPanelProps> = ({
                 ///
               </span>
               <div>
-                <strong className="text-rose-300">Jeda Panjang:</strong> Berhenti penuh (± 2 detik). Titik akhir kalimat, jeda antar-bait, atau perenungan hening.
+                <strong className="text-rose-300">Jeda Panjang:</strong> Berhenti penuh (± 2 detik). Titik/antar-bait.
               </div>
             </div>
           </div>
@@ -389,10 +389,10 @@ export const TeleprompterPanel: React.FC<TeleprompterPanelProps> = ({
       {/* Main Teleprompter Text Canvas */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-y-auto teleprompter-scroll px-8 md:px-14 py-20 relative select-text"
+        className="flex-1 min-h-0 overflow-y-auto teleprompter-scroll px-6 md:px-10 py-6 md:py-10 relative select-text"
         style={{ scrollBehavior: 'smooth' }}
       >
-        <div className="max-w-3xl mx-auto space-y-16 pb-64">
+        <div className="max-w-3xl mx-auto space-y-8 md:space-y-12 pb-32">
           {/* Poem Title Header Banner inside Prompter */}
           <div className="text-center pb-8 border-b border-slate-800/80">
             <h1 className="text-3xl md:text-5xl font-black text-white font-editorial tracking-tight mb-3">
