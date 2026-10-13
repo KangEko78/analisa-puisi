@@ -5,7 +5,11 @@ import { AnalyzeRequestPayload, AiJudgeReport } from '../types/aiJudge';
  * Safely extracts pure Base64 payload and canonical IANA MIME type,
  * removing any Data URL headers (e.g. data:audio/webm;codecs=opus;base64,) and whitespace.
  */
-export function extractBase64AndMime(input: string, fallbackMime: string = 'audio/webm') {
+export function extractBase64AndMime(
+  input: string,
+  fallbackMime: string = 'audio/webm',
+  minBytes: number = 500
+) {
   if (!input || typeof input !== 'string') {
     throw new Error('Data Base64 kosong atau tidak valid.');
   }
@@ -51,8 +55,10 @@ export function extractBase64AndMime(input: string, fallbackMime: string = 'audi
     if (buffer.length === 0) {
       throw new Error('Data biner hasil decoding Base64 berukuran 0 byte.');
     }
-    if (buffer.length < 500) {
-      throw new Error(`Ukuran rekaman audio terlalu kecil (${buffer.length} bytes). Pastikan siswa membaca puisi di depan mikrofon.`);
+    if (buffer.length < minBytes) {
+      throw new Error(
+        `Ukuran rekaman terlalu kecil (${buffer.length} bytes, minimum ${minBytes} bytes). Pastikan siswa membaca puisi di depan mikrofon.`
+      );
     }
   } catch (err: any) {
     throw new Error(`Validasi data Base64 gagal: ${err.message}`);
@@ -66,8 +72,12 @@ export function extractBase64AndMime(input: string, fallbackMime: string = 'audi
 
 export async function performAiPoetryJudge(payload: AnalyzeRequestPayload): Promise<AiJudgeReport> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
-    throw new Error('GEMINI_API_KEY belum dikonfigurasi pada environment server.');
+  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY' || apiKey.trim() === '') {
+    const err: any = new Error(
+      'GEMINI_API_KEY belum dikonfigurasi pada environment server Vercel. Pastikan Anda telah menambahkan GEMINI_API_KEY pada tab Settings > Environment Variables di dashboard Vercel Anda.'
+    );
+    err.code = 'MISSING_API_KEY';
+    throw err;
   }
 
   const ai = new GoogleGenAI({
@@ -102,7 +112,7 @@ export async function performAiPoetryJudge(payload: AnalyzeRequestPayload): Prom
   if (payload.visualConsent && payload.snapshots && payload.snapshots.length > 0) {
     payload.snapshots.slice(0, 4).forEach((snap) => {
       try {
-        const snapData = extractBase64AndMime(snap, 'image/jpeg');
+        const snapData = extractBase64AndMime(snap, 'image/jpeg', 50);
         contentsParts.push({
           inlineData: {
             mimeType: 'image/jpeg',
@@ -272,7 +282,21 @@ Berikan bukti konkret berupa kutipan bait/kata nyata dari rekaman siswa, 2-3 kek
     throw new Error('Gemini API tidak mengembalikan teks respons analisis.');
   }
 
-  const parsed = JSON.parse(responseText.trim()) as AiJudgeReport;
+  let cleanedJson = responseText.trim();
+  if (cleanedJson.startsWith('```json')) {
+    cleanedJson = cleanedJson.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+  } else if (cleanedJson.startsWith('```')) {
+    cleanedJson = cleanedJson.replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
+  }
+
+  let parsed: AiJudgeReport;
+  try {
+    parsed = JSON.parse(cleanedJson) as AiJudgeReport;
+  } catch (parseErr: any) {
+    console.error('[Gemini JSON Parse Error] Raw text was:', responseText);
+    throw new Error(`Format respons Gemini bukan JSON valid: ${parseErr.message}`);
+  }
+
   parsed.analyzedAt = new Date().toISOString();
   parsed.vocal.weight = 40;
   parsed.appreciation.weight = 30;

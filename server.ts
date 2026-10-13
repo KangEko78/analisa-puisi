@@ -23,12 +23,13 @@ async function startServer() {
 
   // API Route for AI Poetry Judge
   app.post('/api/analyze', async (req, res) => {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
     try {
       const payload: AnalyzeRequestPayload = req.body;
-      if (!payload || !payload.audioBase64) {
+      if (!payload || !payload.audioBase64 || typeof payload.audioBase64 !== 'string' || payload.audioBase64.trim() === '') {
         return res.status(400).json({
           success: false,
-          error: 'Data audio pembacaan tidak disertakan.',
+          error: 'Data audio pembacaan (audioBase64) tidak disertakan.',
           errorCode: 'INVALID_REQUEST',
         });
       }
@@ -39,14 +40,29 @@ async function startServer() {
         report,
       });
     } catch (err: any) {
-      console.error('API /api/analyze error:', err);
+      console.error('[API /api/analyze Error]:', err);
       const errorMessage = err?.message || 'Gagal memproses evaluasi audio AI.';
-      const isApiKeyError = errorMessage.includes('GEMINI_API_KEY') || errorMessage.includes('API_KEY_INVALID');
+      const isApiKeyError =
+        errorMessage.includes('GEMINI_API_KEY') ||
+        errorMessage.includes('API_KEY_INVALID') ||
+        errorMessage.includes('API key') ||
+        err?.code === 'MISSING_API_KEY';
+
+      const isAudioError =
+        errorMessage.includes('Base64') ||
+        errorMessage.includes('audio') ||
+        errorMessage.includes('rekaman');
+
+      const errorCode = isApiKeyError
+        ? 'MISSING_API_KEY'
+        : isAudioError
+        ? 'AUDIO_UNREADABLE'
+        : 'API_ERROR';
 
       return res.status(500).json({
         success: false,
         error: errorMessage,
-        errorCode: isApiKeyError ? 'MISSING_API_KEY' : 'API_ERROR',
+        errorCode,
       });
     }
   });

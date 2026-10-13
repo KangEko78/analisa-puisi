@@ -265,16 +265,88 @@ export default function App() {
         body: JSON.stringify(payload),
       });
 
-      const data: AnalyzeResponsePayload = await res.json();
+      const contentType = res.headers.get('content-type') || '';
+      let data: AnalyzeResponsePayload | null = null;
+      let nonJsonSnippet = '';
 
-      if (!res.ok || !data.success || !data.report) {
-        throw new Error(data.error || 'Server gagal memproses analisis evaluasi AI.');
+      if (contentType.toLowerCase().includes('application/json')) {
+        try {
+          data = (await res.json()) as AnalyzeResponsePayload;
+        } catch (jsonErr) {
+          console.error('[AI Judge Frontend] Gagal membaca data JSON:', jsonErr);
+        }
+      } else {
+        // Response is HTML / plain text (e.g. Vercel serverless error page)
+        try {
+          nonJsonSnippet = await res.text();
+        } catch {
+          // ignore
+        }
+        console.error('[AI Judge Frontend] Respons server bukan JSON:', {
+          status: res.status,
+          statusText: res.statusText,
+          contentType,
+          snippet: nonJsonSnippet.slice(0, 300),
+        });
+      }
+
+      // 1. Handle HTTP error status (non-2xx)
+      if (!res.ok) {
+        if (data && data.error) {
+          throw new Error(data.error);
+        }
+
+        if (res.status === 413 || nonJsonSnippet.includes('FUNCTION_PAYLOAD_TOO_LARGE') || nonJsonSnippet.includes('Payload Too Large')) {
+          throw new Error(
+            'Ukuran rekaman audio melebihi kapasitas pengiriman server (maksimal 4.5MB). Cobalah membaca dengan tempo wajar atau nonaktifkan cuplikan kamera.'
+          );
+        }
+
+        if (res.status === 504 || nonJsonSnippet.includes('FUNCTION_INVOCATION_TIMEOUT') || nonJsonSnippet.includes('Gateway Timeout')) {
+          throw new Error(
+            'Pemrosesan audio AI melebihi batas waktu (timeout). Silakan klik "Coba Analisis Ulang".'
+          );
+        }
+
+        if (res.status === 404) {
+          throw new Error(
+            'Endpoint /api/analyze tidak ditemukan pada server hosting Vercel. Pastikan folder api/analyze.ts terunggah.'
+          );
+        }
+
+        if (res.status === 500) {
+          if (nonJsonSnippet.includes('GEMINI_API_KEY') || nonJsonSnippet.includes('API_KEY')) {
+            throw new Error(
+              'GEMINI_API_KEY belum dikonfigurasi di Vercel Environment Variables. Hubungi guru pembimbing untuk memasukkan kunci API di pengaturan Vercel.'
+            );
+          }
+          throw new Error(
+            'Server AI sedang mengalami kendala internal (Kode 500). Periksa log Vercel Function untuk memastikan kunci Gemini API aktif.'
+          );
+        }
+
+        throw new Error(
+          `Gagal menghubungi server evaluasi AI (HTTP ${res.status}: ${res.statusText || 'Error'}).`
+        );
+      }
+
+      // 2. Validate payload structure
+      if (!data || !data.success || !data.report) {
+        throw new Error(data?.error || 'Server tidak mengembalikan laporan penilaian AI yang valid.');
       }
 
       setAiReport(data.report);
     } catch (err: any) {
-      console.error('AI Judge error:', err);
-      setAiError(err?.message || 'Terjadi gangguan saat menghubungkan ke layanan Gemini API.');
+      console.error('[AI Judge Error]:', err);
+      // Ensure we display safe, informative message rather than raw internal syntax errors
+      const rawMessage = err?.message || 'Terjadi gangguan saat memproses evaluasi audio AI.';
+      let safeMessage = rawMessage;
+      if (rawMessage.includes('Unexpected token') || rawMessage.includes('is not valid JSON')) {
+        safeMessage =
+          'Server Vercel mengembalikan format respons yang tidak sesuai. Pastikan GEMINI_API_KEY sudah dikonfigurasi di Environment Variables Vercel dan file api/analyze.ts aktif.';
+      }
+      setAiError(safeMessage);
+      setAiReport(null);
     } finally {
       setIsAiAnalyzing(false);
     }

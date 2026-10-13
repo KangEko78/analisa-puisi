@@ -37,8 +37,8 @@ export function usePerformanceRecorder() {
 
     try {
       const canvas = document.createElement('canvas');
-      // Scale down to lightweight dimensions (640px max width)
-      const scale = Math.min(1, 640 / videoEl.videoWidth);
+      // Scale down to lightweight dimensions (480px max width for facial expression)
+      const scale = Math.min(1, 480 / videoEl.videoWidth);
       canvas.width = Math.round(videoEl.videoWidth * scale);
       canvas.height = Math.round(videoEl.videoHeight * scale);
 
@@ -46,15 +46,15 @@ export function usePerformanceRecorder() {
       if (!ctx) return;
 
       ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.65);
 
       // Extract pure base64 without prefix
       const commaIdx = dataUrl.indexOf(',');
       const pureBase64 = commaIdx !== -1 ? dataUrl.slice(commaIdx + 1) : dataUrl;
 
       snapshotsRef.current.push(pureBase64);
-      // Keep up to 4 most representative snapshots
-      if (snapshotsRef.current.length > 4) {
+      // Keep up to 3 most representative snapshots
+      if (snapshotsRef.current.length > 3) {
         snapshotsRef.current.shift();
       }
       setState((prev) => ({ ...prev, snapshots: [...snapshotsRef.current] }));
@@ -104,7 +104,12 @@ export function usePerformanceRecorder() {
         mimeType = 'audio/ogg';
       }
 
-      const recorder = new MediaRecorder(stream, { mimeType });
+      let recorder: MediaRecorder;
+      try {
+        recorder = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 32000 });
+      } catch {
+        recorder = new MediaRecorder(stream, { mimeType });
+      }
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = (event) => {
