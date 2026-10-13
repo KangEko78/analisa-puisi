@@ -1,0 +1,10 @@
+{
+  "name": "Puisi Performance Studio",
+  "description": "Aplikasi latihan dan teleprompter pembacaan puisi Bahasa Indonesia interaktif untuk siswa SMP pada layar Interactive Flat Panel (IFP).",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
