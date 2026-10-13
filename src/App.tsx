@@ -5,8 +5,12 @@ import { ControlBar, IfpLayoutMode } from './components/ControlBar';
 import { EvaluationModal } from './components/EvaluationModal';
 import { PoemSelectorModal } from './components/PoemSelectorModal';
 import { GuideModal } from './components/GuideModal';
+import { AiConsentModal } from './components/AiConsentModal';
+import { AiJudgeReportModal } from './components/AiJudgeReportModal';
 import { INITIAL_POEMS } from './data/poems';
 import { Poem } from './types/poem';
+import { AiJudgeReport, AnalyzeRequestPayload, AnalyzeResponsePayload } from './types/aiJudge';
+import { usePerformanceRecorder } from './hooks/usePerformanceRecorder';
 import { playCountdownBeep } from './utils/audioCue';
 import {
   Sparkles,
@@ -18,10 +22,10 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  // State for current poem
+  // Current active poem
   const [currentPoem, setCurrentPoem] = useState<Poem>(INITIAL_POEMS[0]);
 
-  // Student identification (for IFP classroom turns)
+  // Student identification
   const [studentName, setStudentName] = useState<string>('Siswa Pembaca');
   const [studentClass, setStudentClass] = useState<string>('Kelas VIII SMP');
 
@@ -33,10 +37,10 @@ export default function App() {
   const [showExpressionGuide, setShowExpressionGuide] = useState<boolean>(true);
   const [showLegend, setShowLegend] = useState<boolean>(false);
 
-  // IFP Layout Mode (50:50, Fokus Kamera, Fokus Teleprompter)
+  // IFP Layout Mode
   const [layoutMode, setLayoutMode] = useState<IfpLayoutMode>('balanced');
 
-  // Performance practice playback state
+  // Performance playback state
   const [isPracticing, setIsPracticing] = useState<boolean>(false);
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [practiceDuration, setPracticeDuration] = useState<number>(0);
@@ -48,14 +52,31 @@ export default function App() {
   const [isEvaluationOpen, setIsEvaluationOpen] = useState<boolean>(false);
   const [isPoemSelectorOpen, setIsPoemSelectorOpen] = useState<boolean>(false);
   const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
+  const [isConsentModalOpen, setIsConsentModalOpen] = useState<boolean>(false);
+  const [isAiJudgeReportOpen, setIsAiJudgeReportOpen] = useState<boolean>(false);
+
+  // AI Judge State
+  const [isAiAnalyzing, setIsAiAnalyzing] = useState<boolean>(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiReport, setAiReport] = useState<AiJudgeReport | null>(null);
+  const [lastCapturedAudio, setLastCapturedAudio] = useState<{
+    base64: string | null;
+    mimeType: string;
+    snapshots: string[];
+  } | null>(null);
 
   // Fullscreen state
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
-  // Stopwatch timer ref
+  // Refs
   const timerIntervalRef = useRef<number | null>(null);
+  const videoElementRef = useRef<HTMLVideoElement | null>(null);
+  const lastSnapshotProgressRef = useRef<number>(0);
 
-  // Practice Stopwatch effect
+  // Audio Recorder Hook
+  const recorder = usePerformanceRecorder();
+
+  // Practice Stopwatch
   useEffect(() => {
     if (isPracticing && !isPaused) {
       timerIntervalRef.current = window.setInterval(() => {
@@ -75,7 +96,18 @@ export default function App() {
     };
   }, [isPracticing, isPaused]);
 
-  // Countdown timer handler (3, 2, 1 -> Start!)
+  // Periodic visual snapshot capture during recitation (at ~20%, ~45%, ~70%, ~90% progress)
+  useEffect(() => {
+    if (!isPracticing || isPaused) return;
+
+    const diff = Math.abs(progressPercent - lastSnapshotProgressRef.current);
+    if (diff >= 22 && videoElementRef.current) {
+      lastSnapshotProgressRef.current = progressPercent;
+      recorder.captureSnapshot(videoElementRef.current);
+    }
+  }, [progressPercent, isPracticing, isPaused, recorder]);
+
+  // Countdown timer handler (3, 2, 1 -> Start Practice & Audio Capture)
   useEffect(() => {
     if (countdown === null) return;
 
@@ -91,10 +123,19 @@ export default function App() {
       setCountdown(null);
       setIsPracticing(true);
       setIsPaused(false);
-    }
-  }, [countdown]);
+      lastSnapshotProgressRef.current = 0;
 
-  // Fullscreen change listener (supporting Android Chrome and IFP webviews)
+      // Start audio recording
+      recorder.startRecording().then(() => {
+        // Take initial posture snapshot
+        if (videoElementRef.current) {
+          recorder.captureSnapshot(videoElementRef.current);
+        }
+      });
+    }
+  }, [countdown, recorder]);
+
+  // Fullscreen change listener
   useEffect(() => {
     const handleFullscreenChange = () => {
       const doc = document as unknown as {
@@ -126,10 +167,10 @@ export default function App() {
 
   // Action Handlers
   const handleStart = () => {
-    // Initiate 3-second countdown before teleprompter starts rolling
     setCountdown(3);
     setPracticeDuration(0);
     setProgressPercent(0);
+    recorder.resetRecording();
     if (currentPoem.stanzas[0]?.lines[0]) {
       setActiveLineId(currentPoem.stanzas[0].lines[0].id);
     }
@@ -149,15 +190,94 @@ export default function App() {
     setCountdown(null);
     setPracticeDuration(0);
     setProgressPercent(0);
+    recorder.resetRecording();
     if (currentPoem.stanzas[0]?.lines[0]) {
       setActiveLineId(currentPoem.stanzas[0].lines[0].id);
     }
   };
 
-  const handleFinish = () => {
+  // When user clicks "Selesai & Analisis"
+  const handleFinish = async () => {
     setIsPracticing(false);
     setIsPaused(false);
-    setIsEvaluationOpen(true);
+
+    // Stop audio recording and capture compiled base64
+    const audioResult = await recorder.stopRecording();
+    setLastCapturedAudio({
+      base64: audioResult.base64,
+      mimeType: audioResult.mimeType,
+      snapshots: audioResult.snapshots,
+    });
+
+    if (!audioResult.base64 || audioResult.size < 500) {
+      // Audio is empty or microphone captured 0 bytes
+      setAiError(
+        'Rekaman audio tidak terdeteksi atau durasi terlalu singkat (kurang dari 500 bytes). Pastikan izin mikrofon telah diberikan dan siswa melafalkan bait puisi di depan mikrofon.'
+      );
+      setIsAiJudgeReportOpen(true);
+      return;
+    }
+
+    // Open privacy consent modal first
+    setIsConsentModalOpen(true);
+  };
+
+  // Run AI Analysis via backend endpoint
+  const runAiAnalysis = async (visualConsent: boolean) => {
+    setIsConsentModalOpen(false);
+    setIsAiJudgeReportOpen(true);
+    setIsAiAnalyzing(true);
+    setAiError(null);
+    setAiReport(null);
+
+    try {
+      if (!lastCapturedAudio?.base64) {
+        throw new Error('Rekaman audio tidak ditemukan atau durasi terlalu pendek. Pastikan mikrofon aktif.');
+      }
+
+      const poemRawText = currentPoem.stanzas
+        .flatMap((s) => s.lines.map((l) => l.rawText))
+        .join('\n');
+      const prosodyMarkedText = currentPoem.stanzas
+        .flatMap((s) => s.lines.map((l) => l.prosodyMarkedText))
+        .join('\n');
+
+      const payload: AnalyzeRequestPayload = {
+        poemId: currentPoem.id,
+        poemTitle: currentPoem.title,
+        poet: currentPoem.poet,
+        poemRawText,
+        prosodyMarkedText,
+        studentName,
+        studentClass,
+        durationSeconds: practiceDuration,
+        audioBase64: lastCapturedAudio.base64,
+        audioMimeType: lastCapturedAudio.mimeType || 'audio/webm',
+        visualConsent,
+        snapshots: visualConsent ? lastCapturedAudio.snapshots : [],
+      };
+
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data: AnalyzeResponsePayload = await res.json();
+
+      if (!res.ok || !data.success || !data.report) {
+        throw new Error(data.error || 'Server gagal memproses analisis evaluasi AI.');
+      }
+
+      setAiReport(data.report);
+    } catch (err: any) {
+      console.error('AI Judge error:', err);
+      setAiError(err?.message || 'Terjadi gangguan saat menghubungkan ke layanan Gemini API.');
+    } finally {
+      setIsAiAnalyzing(false);
+    }
   };
 
   const handleToggleFullscreen = () => {
@@ -217,7 +337,7 @@ export default function App() {
 
   return (
     <div className="h-screen h-[100dvh] max-h-screen max-h-[100dvh] w-screen max-w-full bg-slate-950 text-slate-100 flex flex-col font-sans select-none overflow-hidden">
-      {/* 1. TOP BAR (Strict 3-Zone: Brand, Nav links, 1 Primary Action) */}
+      {/* 1. TOP BAR */}
       <header className="flex items-center justify-between gap-4 sm:gap-8 px-4 sm:px-6 py-2 sm:py-2.5 bg-slate-900 border-b border-slate-800 shrink-0 z-40">
         {/* Zone 1: Brand wordmark */}
         <div className="flex items-center gap-2 whitespace-nowrap shrink-0">
@@ -225,7 +345,7 @@ export default function App() {
             PUISI PERFORMANCE STUDIO
           </span>
           <span className="text-[10px] sm:text-xs text-amber-400 font-mono hidden sm:inline px-2 py-0.5 bg-amber-500/10 rounded border border-amber-500/20">
-            IFP 75" 4K
+            AI POETRY JUDGE
           </span>
         </div>
 
@@ -261,7 +381,7 @@ export default function App() {
             className="hover:text-amber-300 transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5"
           >
             <Award className="w-3.5 h-3.5 text-purple-400" />
-            <span>Rubrik Aspek SMP</span>
+            <span>Rubrik 40/30/30</span>
           </button>
         </nav>
 
@@ -296,12 +416,12 @@ export default function App() {
           <span className="text-slate-600 hidden sm:inline">|</span>
           <span className="text-emerald-400 flex items-center gap-1 hidden sm:flex">
             <Tv className="w-3 h-3" />
-            <span>Fit Penuh IFP</span>
+            <span>IFP Layar Sentuh Siap</span>
           </span>
         </div>
       </div>
 
-      {/* 3. MAIN STAGE: TWO PRIMARY PANELS SIDE-BY-SIDE (LOCKED 100% TO VIEWPORT) */}
+      {/* 3. MAIN STAGE: TWO PRIMARY PANELS SIDE-BY-SIDE */}
       <main
         className={`flex-1 min-h-0 w-full overflow-hidden p-2 sm:p-3 md:p-3.5 grid gap-3 md:gap-4 relative ${
           layoutMode === 'balanced'
@@ -325,6 +445,9 @@ export default function App() {
             studentName={studentName}
             studentClass={studentClass}
             isPracticing={isPracticing}
+            micLevel={recorder.micLevel}
+            isRecordingAudio={recorder.isRecording}
+            videoRefForwarded={videoElementRef}
             onStudentInfoChange={(name, sClass) => {
               setStudentName(name);
               setStudentClass(sClass);
@@ -365,7 +488,7 @@ export default function App() {
           />
         </section>
 
-        {/* COUNTDOWN OVERLAY (3-2-1 READY MODAL) */}
+        {/* COUNTDOWN OVERLAY (3-2-1 READY) */}
         {countdown !== null && (
           <div className="absolute inset-0 bg-black/85 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 text-center">
             <div className="space-y-4 animate-in fade-in zoom-in duration-300">
@@ -376,14 +499,14 @@ export default function App() {
                 {countdown === 0 ? 'MULAI!' : countdown}
               </div>
               <p className="text-xs sm:text-sm md:text-base text-slate-300 max-w-md mx-auto">
-                Tegakkan punggung, tatap ke depan, dan hembuskan napas rileks. Teleprompter akan mulai bergulir otomatis.
+                Tegakkan punggung, tatap ke depan, dan hembuskan napas rileks. Mikrofon dan teleprompter akan mulai bergulir otomatis.
               </p>
             </div>
           </div>
         )}
       </main>
 
-      {/* 4. IFP CONTROL BAR (Fixed at bottom, never pushed off screen) */}
+      {/* 4. IFP CONTROL BAR */}
       <footer className="shrink-0">
         <ControlBar
           isPracticing={isPracticing}
@@ -404,8 +527,46 @@ export default function App() {
         />
       </footer>
 
-      {/* 5. MODALS */}
-      {/* Real SMP Rubric Evaluation Modal */}
+      {/* 5. MODALS & REPORTING */}
+      {/* Privacy Consent Modal Before AI Cloud Call */}
+      <AiConsentModal
+        isOpen={isConsentModalOpen}
+        poem={currentPoem}
+        studentName={studentName}
+        studentClass={studentClass}
+        durationSeconds={practiceDuration}
+        snapshotsCount={lastCapturedAudio?.snapshots?.length || 0}
+        onConfirm={(visualConsent) => runAiAnalysis(visualConsent)}
+        onCancelManualRubric={() => {
+          setIsConsentModalOpen(false);
+          setIsEvaluationOpen(true);
+        }}
+        onClose={() => setIsConsentModalOpen(false)}
+      />
+
+      {/* Full AI Poetry Judge Report Modal */}
+      <AiJudgeReportModal
+        isOpen={isAiJudgeReportOpen}
+        poem={currentPoem}
+        studentName={studentName}
+        studentClass={studentClass}
+        durationSeconds={practiceDuration}
+        report={aiReport}
+        isLoading={isAiAnalyzing}
+        error={aiError}
+        onRetry={() => runAiAnalysis(true)}
+        onOpenManualRubric={() => {
+          setIsAiJudgeReportOpen(false);
+          setIsEvaluationOpen(true);
+        }}
+        onClose={() => setIsAiJudgeReportOpen(false)}
+        onPracticeAgain={() => {
+          setIsAiJudgeReportOpen(false);
+          handleStart();
+        }}
+      />
+
+      {/* Fallback Manual Rubric Evaluation Modal */}
       <EvaluationModal
         isOpen={isEvaluationOpen}
         poem={currentPoem}
@@ -419,7 +580,7 @@ export default function App() {
         }}
       />
 
-      {/* Poem Selector / Custom Poem Input Modal */}
+      {/* Poem Selector Modal */}
       <PoemSelectorModal
         isOpen={isPoemSelectorOpen}
         activePoemId={currentPoem.id}

@@ -10,6 +10,7 @@ import {
   Clock,
   HelpCircle,
   Columns2,
+  Sparkles,
 } from 'lucide-react';
 
 export type IfpLayoutMode = 'balanced' | 'focus-camera' | 'focus-teleprompter';
@@ -176,10 +177,10 @@ export const ControlBar: React.FC<ControlBarProps> = ({
               <button
                 type="button"
                 onClick={onFinish}
-                className="h-10 sm:h-11 px-3 sm:px-5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs sm:text-sm flex items-center gap-1.5 active:scale-95 transition-all shadow-md"
+                className="h-10 sm:h-11 px-3 sm:px-5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs sm:text-sm flex items-center gap-1.5 active:scale-95 transition-all shadow-md font-display"
               >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Selesai</span>
+                <Sparkles className="w-4 h-4 fill-current" />
+                <span>Selesai & Analisis</span>
               </button>
             </>
           ) : (
@@ -207,10 +208,10 @@ export const ControlBar: React.FC<ControlBarProps> = ({
               <button
                 type="button"
                 onClick={onFinish}
-                className="h-10 sm:h-11 px-3 sm:px-5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm flex items-center gap-1.5 shadow-lg shadow-emerald-600/20 active:scale-95 transition-all"
+                className="h-10 sm:h-11 px-3 sm:px-5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs sm:text-sm flex items-center gap-1.5 shadow-lg shadow-amber-500/20 active:scale-95 transition-all font-display"
               >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Selesai</span>
+                <Sparkles className="w-4 h-4 fill-current" />
+                <span>Selesai & Analisis</span>
               </button>
             </>
           )}

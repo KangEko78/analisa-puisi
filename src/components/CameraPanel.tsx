@@ -1,10 +1,13 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Camera, CameraOff, FlipHorizontal, Eye, AlertCircle, RefreshCw, UserCheck, ShieldCheck } from 'lucide-react';
+import { Camera, CameraOff, FlipHorizontal, Eye, AlertCircle, RefreshCw, UserCheck, ShieldCheck, Mic } from 'lucide-react';
 
 interface CameraPanelProps {
   studentName: string;
   studentClass: string;
   isPracticing: boolean;
+  micLevel?: number;
+  isRecordingAudio?: boolean;
+  videoRefForwarded?: React.MutableRefObject<HTMLVideoElement | null>;
   onStudentInfoChange: (name: string, studentClass: string) => void;
 }
 
@@ -12,9 +15,13 @@ export const CameraPanel: React.FC<CameraPanelProps> = ({
   studentName,
   studentClass,
   isPracticing,
+  micLevel = 0,
+  isRecordingAudio = false,
+  videoRefForwarded,
   onStudentInfoChange,
 }) => {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const videoRef = videoRefForwarded || localVideoRef;
   const streamRef = useRef<MediaStream | null>(null);
 
   const [isCameraActive, setIsCameraActive] = useState<boolean>(true);
@@ -280,10 +287,26 @@ export const CameraPanel: React.FC<CameraPanelProps> = ({
           </div>
         )}
 
-        {/* Privacy & Safety Badge (Non-recording assurance) */}
-        <div className="absolute bottom-4 left-4 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-black/70 backdrop-blur border border-slate-700/60 text-[11px] text-slate-300 font-mono">
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Privasi Siswa: Mode Live Langsung (Tanpa Rekam / Unggah)</span>
+        {/* Privacy & Safety Badge (Non-recording assurance) + Mic Activity */}
+        <div className="absolute bottom-4 left-4 z-20 flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-black/70 backdrop-blur border border-slate-700/60 text-[11px] text-slate-300 font-mono">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Kamera Live (Video Tidak Direkam)</span>
+          </div>
+
+          {/* Real-time Microphone Audio Activity Meter */}
+          {isRecordingAudio && (
+            <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-slate-950/80 backdrop-blur border border-amber-500/40 text-[11px] text-amber-300 font-mono">
+              <Mic className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+              <span>Audio Aktif:</span>
+              <div className="w-14 h-2 bg-slate-800 rounded-full overflow-hidden flex items-center">
+                <div
+                  className="h-full bg-gradient-to-r from-emerald-500 via-amber-400 to-rose-500 transition-all duration-75"
+                  style={{ width: `${Math.max(8, micLevel)}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Live Practice Status Indicator */}
